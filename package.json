@@ -1,0 +1,19 @@
+{
+  "name": "sequential-thinking-mcp",
+  "version": "1.0.0",
+  "description": "A server for AI sequential thinking processes",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2",
+    "ajv": "^8.12.0",
+    "uuid": "^9.0.0",
+    "dotenv": "^16.0.0"
+  }
+}
