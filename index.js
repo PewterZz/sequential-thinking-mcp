@@ -4,6 +4,18 @@ const bodyParser = require('body-parser');
 const Ajv = require('ajv');
 const { v4: uuidv4 } = require('uuid');
 
+// Configure logging based on environment
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+const logLevels = { error: 0, warn: 1, info: 2, debug: 3 };
+const currentLogLevel = logLevels[LOG_LEVEL] || logLevels.info;
+
+function log(level, message, ...args) {
+  if (logLevels[level] <= currentLogLevel) {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${level.toUpperCase()}:`, message, ...args);
+  }
+}
+
 // Define tools with proper schemas
 const tools = [
   {
@@ -15,7 +27,10 @@ const tools = [
       },
       required: ['thought']
     },
-    execute: (params) => `Branching thought: ${params.thought}`
+    execute: (params) => {
+      log('debug', 'Executing dynamic_thought_branching with thought:', params.thought);
+      return `Branching thought: ${params.thought}`;
+    }
   },
   {
     name: 'hypothesis_generation',
@@ -26,7 +41,10 @@ const tools = [
       },
       required: ['context']
     },
-    execute: (params) => `Generating hypothesis for context: ${params.context}`
+    execute: (params) => {
+      log('debug', 'Executing hypothesis_generation with context:', params.context);
+      return `Generating hypothesis for context: ${params.context}`;
+    }
   }
 ];
 
@@ -35,15 +53,19 @@ app.use(bodyParser.json());
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  log('debug', 'Health check requested');
   res.status(200).json({ 
     status: 'healthy', 
     timestamp: new Date().toISOString(),
-    version: require('./package.json').version 
+    version: require('./package.json').version,
+    logLevel: LOG_LEVEL,
+    nodeEnv: process.env.NODE_ENV || 'development'
   });
 });
 
 // Root endpoint
 app.get('/', (req, res) => {
+  log('debug', 'Server info requested');
   res.json({
     name: 'Sequential Thinking MCP Server',
     version: require('./package.json').version,
@@ -52,7 +74,11 @@ app.get('/', (req, res) => {
       health: '/health',
       mcp: '/api/mcp'
     },
-    tools: tools.map(tool => tool.name)
+    tools: tools.map(tool => tool.name),
+    configuration: {
+      logLevel: LOG_LEVEL,
+      nodeEnv: process.env.NODE_ENV || 'development'
+    }
   });
 });
 
@@ -60,9 +86,11 @@ app.get('/', (req, res) => {
 app.post('/api/mcp', (req, res) => {
   try {
     const { jsonrpc, method, params, id } = req.body;
+    log('debug', 'MCP API request:', { method, id });
     
     // Validate JSON-RPC format
     if (!jsonrpc || jsonrpc !== '2.0') {
+      log('warn', 'Invalid JSON-RPC request:', { jsonrpc, method, id });
       return res.status(400).json({ 
         jsonrpc: '2.0', 
         error: { code: -32600, message: 'Invalid Request' }, 
@@ -77,6 +105,7 @@ app.post('/api/mcp', (req, res) => {
     if (tool && tool.parameters && params) {
       const validate = ajv.compile(tool.parameters);
       if (!validate(params)) {
+        log('warn', 'Invalid parameters for tool:', method, validate.errors);
         return res.status(400).json({ 
           jsonrpc: '2.0', 
           error: { 
@@ -91,6 +120,7 @@ app.post('/api/mcp', (req, res) => {
 
     // Handle different methods
     if (method === 'tools/list') {
+      log('info', 'Tools list requested');
       res.json({ 
         jsonrpc: '2.0', 
         result: tools.map(tool => ({ 
@@ -102,9 +132,11 @@ app.post('/api/mcp', (req, res) => {
     } else if (method === 'tools/call') {
       const tool = tools.find(t => t.name === params.toolName);
       if (tool) {
+        log('info', 'Tool called:', params.toolName);
         const result = tool.execute(params);
         res.json({ jsonrpc: '2.0', result, id });
       } else {
+        log('warn', 'Tool not found:', params.toolName);
         res.status(404).json({ 
           jsonrpc: '2.0', 
           error: { code: -32601, message: 'Tool not found' }, 
@@ -112,6 +144,7 @@ app.post('/api/mcp', (req, res) => {
         });
       }
     } else {
+      log('warn', 'Method not found:', method);
       res.status(404).json({ 
         jsonrpc: '2.0', 
         error: { code: -32601, message: 'Method not found' }, 
@@ -119,7 +152,7 @@ app.post('/api/mcp', (req, res) => {
       });
     }
   } catch (error) {
-    console.error('Server error:', error);
+    log('error', 'Server error:', error.message, error.stack);
     res.status(500).json({ 
       jsonrpc: '2.0', 
       error: { 
@@ -134,23 +167,25 @@ app.post('/api/mcp', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Health check available at http://localhost:${PORT}/health`);
-  console.log(`MCP API available at http://localhost:${PORT}/api/mcp`);
+  log('info', `Server running on port ${PORT}`);
+  log('info', `Log level: ${LOG_LEVEL}`);
+  log('info', `Node environment: ${process.env.NODE_ENV || 'development'}`);
+  log('info', `Health check available at http://localhost:${PORT}/health`);
+  log('info', `MCP API available at http://localhost:${PORT}/api/mcp`);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+  log('info', 'SIGTERM received, shutting down gracefully');
   server.close(() => {
-    console.log('Process terminated');
+    log('info', 'Process terminated');
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
+  log('info', 'SIGINT received, shutting down gracefully');
   server.close(() => {
-    console.log('Process terminated');
+    log('info', 'Process terminated');
   });
 });
 

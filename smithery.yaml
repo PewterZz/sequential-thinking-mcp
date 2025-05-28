@@ -1,4 +1,110 @@
-version: 1
-start:
-  command: ["node", "index.js"]
-  port: 3000 
+# smithery.yaml configuration file
+# Docs: https://smithery.ai/docs/config#smitheryyaml
+
+version: 0.1.0 # Check Smithery docs for current version
+
+# Basic information about your tool
+info:
+  name: sequential-thinking-mcp
+  title: Sequential Thinking MCP Server
+  description: A server for AI sequential thinking processes using thought branching and dynamic hypothesis generation. Provides tools for structured reasoning and cognitive analysis.
+
+# --- Start Command Configuration --- Required Section ---
+startCommand:
+  # Indicates the MCP communicates over HTTP
+  type: http
+
+  # Defines the configuration options the user needs to provide in Smithery
+  configSchema:
+    type: object
+    required: []
+    properties:
+      # Currently no configuration required - this is a stateless server
+      logLevel:
+        type: string
+        description: Log level for the server (e.g., info, debug, error).
+        default: info
+        enum: [debug, info, warn, error]
+
+  # Function to generate the command line instruction to start the server
+  commandFunction:
+    # Takes the config object (from configSchema) and returns command details
+    |-
+      (config) => ({
+        "command": "npm",
+        "args": ["start"],
+        "env": {
+          "NODE_ENV": "production",
+          "LOG_LEVEL": config.logLevel || "info",
+          "PORT": process.env.PORT || "3000"
+        }
+      })
+
+# How Smithery should connect to your deployed API
+server:
+  url: ${env.MCP_SERVER_URL} # Example: using an env var set during deployment
+  healthCheck: /health
+  apiPath: /api/mcp
+
+containerPort: 3000
+
+# List of available tools
+tools:
+  - name: dynamic_thought_branching
+    description: Creates branching thought processes for complex reasoning tasks. Helps explore multiple cognitive pathways and alternative perspectives on a given thought or problem.
+    parameters:
+      - name: thought
+        description: The initial thought or concept to branch from
+        type: string
+        required: true
+    examples:
+      - thought: "How can we solve climate change?"
+      - thought: "What are the implications of artificial intelligence?"
+  
+  - name: hypothesis_generation
+    description: Generates structured hypotheses based on given context. Useful for scientific reasoning, problem-solving, and systematic analysis of complex scenarios.
+    parameters:
+      - name: context
+        description: The context or background information for hypothesis generation
+        type: string
+        required: true
+    examples:
+      - context: "Declining bee populations in agricultural areas"
+      - context: "Increasing employee turnover in tech companies"
+
+# Define actions (endpoints) - API endpoints available
+actions:
+  healthCheck:
+    operationId: getHealth
+    summary: Health Check
+    description: Returns the current health status of the server
+    method: GET
+    path: /health
+  
+  serverInfo:
+    operationId: getServerInfo
+    summary: Server Information
+    description: Returns information about the server, including available tools and endpoints
+    method: GET
+    path: /
+  
+  mcpApi:
+    operationId: postMcpApi
+    summary: MCP JSON-RPC API
+    description: Main API endpoint for Model Context Protocol JSON-RPC requests
+    method: POST
+    path: /api/mcp
+
+# Optional metadata
+metadata:
+  version: "1.0.0"
+  author: "Sequential Thinking Team"
+  license: "MIT"
+  repository: "https://github.com/your-username/sequential-thinking-mcp"
+  homepage: "https://github.com/your-username/sequential-thinking-mcp"
+  tags:
+    - reasoning
+    - cognitive-analysis
+    - thought-processes
+    - hypothesis-generation
+    - ai-tools 
